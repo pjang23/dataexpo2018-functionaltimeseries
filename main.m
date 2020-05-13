@@ -32,6 +32,29 @@ phiLon = @(LonVec)bspline_basismatrix(order,knotseqLon,LonVec);
 phiLat = @(LatVec)bspline_basismatrix(order,knotseqLat,LatVec);
 numBF = numBFLon*numBFLat;
 
+% Plot Forecast Locations and B-Spline Knots
+figure;
+plot(MaxTemp(974,7).Lon,MaxTemp(974,7).Lat,'o')
+xlabel('Longitude')
+xlim([floor(min(MaxTemp(974,7).Lon))-1,ceil(max(MaxTemp(974,7).Lon))+1])
+ylim([floor(min(MaxTemp(974,7).Lat))-1,ceil(max(MaxTemp(974,7).Lat))+1])
+ylabel('Latitude')
+ax1 = gca; % the first axes
+ax2 = axes('Position',ax1.Position,...
+  'XAxisLocation','bottom',...
+  'YAxisLocation','left',...
+  'Color','none',... 
+  'Ylim',ax1.YLim,...
+  'XLim',ax1.XLim,...
+  'TickLength',[0 0],...
+  'YTick', knotseqLat(order:end-order+1), ...
+  'XTick', knotseqLon(order:end-order+1),  ...
+  'YTickLabel', [],  ...
+  'XTickLabel', []  );
+linkaxes([ax1 ax2],'xy')
+grid on
+set(gcf,'CurrentAxes',ax1);
+
 % Visualize B-splines
 % LonVec = linspace(LonMin,LonMax,1000)';
 % plot(LonVec,phiLon(LonVec))
@@ -202,6 +225,50 @@ colIdx = 7;
 autocorr(ModelFit(colIdx).ukstd(:,1).^2)
 title('ACF for Squared Standardized Innovations')
 ylabel('Sample Autocorrelation of  [u_{1t}/n_{1t}]^2')
+
+% Correlogram before and after
+AllLon = MaxTemp(975,7).Lon;
+AllLat = MaxTemp(975,7).Lat;
+distmat = sqrt((repmat(AllLon,[1,111])-repmat(AllLon',[111,1])).^2 + (repmat(AllLat,[1,111])-repmat(AllLat',[111,1])).^2);
+errorMatrixFull = ModelFit(colIdx).errorMatrix(~isnan(sum(ModelFit(colIdx).errorMatrix,2)),:);
+residMatrixFull = ModelFit(colIdx).residMatrix(~isnan(sum(ModelFit(colIdx).residMatrix,2)),:);
+corrmatbefore = corr(errorMatrixFull);
+corrmatafter = corr(residMatrixFull);
+figure;
+plot(distmat(:),corrmatbefore(:),'bo')
+ylim([-0.6,1])
+ylabel('Correlation')
+xlabel('Distance')
+figure;
+plot(distmat(:),corrmatafter(:),'ro')
+ylabel('Correlation')
+xlabel('Distance')
+
+% Compute sum of squared correlations for different numbers of basis
+% functions to assess spatial correlation in residuals.
+
+% This .mat file contains corr(residMatrixFull) for different numbers of basis
+% functions, and can be reproduced by setting numBFred to 5,10,15,...,45 
+% and re-running Section 2.
+load('MaxTempCorrResidDifferentBFs.mat')
+sumsqcorr = [sum(CorrResid0(:).^2); sum(CorrResid5(:).^2); ...
+              sum(CorrResid10(:).^2); sum(CorrResid15(:).^2); ...
+              sum(CorrResid20(:).^2); sum(CorrResid25(:).^2); ...
+              sum(CorrResid30(:).^2); sum(CorrResid35(:).^2); ...
+              sum(CorrResid40(:).^2); sum(CorrResid45(:).^2)];
+
+figure;
+xlabel('Number of Basis Functions (K)')
+yyaxis left
+plot([0;5;10;15;20;25;30;35;40;45],sumsqcorr)
+hold on;
+plot(20,sumsqcorr(5),'bs','MarkerSize',10,'MarkerFaceColor','b')
+ylabel('Sum of Squared Residual Correlogram')
+hold on;
+yyaxis right
+plot(0:45,[0;100*cumsum(sigma2(1:45,7))./repmat(sum(sigma2(:,7),1),45,1)],'r')
+ylabel('Percentage of Explained Variance')
+ytickformat('percentage')
 
 
 %% Section 5: Predict next-day coefficients to improve weather forecasts
